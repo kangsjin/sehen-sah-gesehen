@@ -3,14 +3,9 @@ import { QUESTION_COUNT } from './config';
 import { ensureFsrsSchema, ensureUser, listUsers, loadDueCards, persistReview } from './repository';
 import { ask, buildQuizTable, green, isCorrect, red, renderUsersTable } from './ui';
 
-const EASY_SECONDS = 3;
-const GOOD_SECONDS = 8;
-
-function gradeFromResponseTime(seconds: number): 2 | 3 | 4 {
-  if (seconds <= EASY_SECONDS) return 4; // Easy
-  if (seconds <= GOOD_SECONDS) return 3; // Good
-  return 2; // Hard
-}
+const sharedQuizLogic = require('../../web/shared/quiz-logic.js') as {
+  gradeFromResponseTime: (seconds: number) => 2 | 3 | 4;
+};
 
 async function promptUserLogin(rl: readline.Interface): Promise<string> {
   while (true) {
@@ -82,7 +77,7 @@ async function run(): Promise<void> {
     const exact = isCorrect(input, card.answer);
     let grade: 1 | 2 | 3 | 4 = 1;
     if (exact) {
-      grade = gradeFromResponseTime(elapsedSec);
+      grade = sharedQuizLogic.gradeFromResponseTime(elapsedSec);
     }
 
     const next = persistReview(userId, card, input, grade);

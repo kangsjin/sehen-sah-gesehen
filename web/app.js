@@ -6,17 +6,8 @@ import { fsrs, generatorParameters, Rating, State } from 'https://esm.sh/ts-fsrs
 
 const html = htm.bind(React.createElement);
 const srs = fsrs(generatorParameters({ request_retention: 0.9, enable_fuzz: false, enable_short_term: false }));
-
-function canonical(s) {
-  return String(s || '')
-    .trim()
-    .toLowerCase()
-    .replace(/ä/g, 'ae')
-    .replace(/ö/g, 'oe')
-    .replace(/ü/g, 'ue')
-    .replace(/ß/g, 'ss')
-    .replace(/\s+/g, ' ');
-}
+const canonical = window.SehenShared?.canonicalizeAnswer || ((s) => String(s || '').trim().toLowerCase());
+const gradeBySeconds = window.SehenShared?.gradeFromResponseTime || ((sec) => (sec <= 3 ? 4 : sec <= 8 ? 3 : 2));
 
 function dbStateToFsrs(s) {
   if (s === 'learning') return State.Learning;
@@ -30,12 +21,6 @@ function fsrsStateToDb(s) {
   if (s === State.Review) return 'review';
   if (s === State.Relearning) return 'relearning';
   return 'new';
-}
-
-function gradeBySeconds(sec) {
-  if (sec <= 3) return 4;
-  if (sec <= 8) return 3;
-  return 2;
 }
 
 function gradeToRating(g) {

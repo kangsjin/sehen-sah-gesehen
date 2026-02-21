@@ -1,5 +1,8 @@
 import type readline from 'node:readline';
 import type { DueCard, UserSummary } from './types';
+const sharedQuizLogic = require('../../web/shared/quiz-logic.js') as {
+  canonicalizeAnswer: (input: string) => string;
+};
 
 const COLOR = {
   reset: '\x1b[0m',
@@ -25,14 +28,7 @@ export function red(text: string): string {
 }
 
 export function canonical(input: string): string {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/ä/g, 'ae')
-    .replace(/ö/g, 'oe')
-    .replace(/ü/g, 'ue')
-    .replace(/ß/g, 'ss')
-    .replace(/\s+/g, ' ');
+  return sharedQuizLogic.canonicalizeAnswer(input);
 }
 
 export function isCorrect(userInput: string, answer: string): boolean {

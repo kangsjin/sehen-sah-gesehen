@@ -41,6 +41,7 @@ npm start
   - `/Users/kang/Developer/sehen-sah-gesehen/web/supabase/schema.sql`
   - `/Users/kang/Developer/sehen-sah-gesehen/web/supabase/seed_verbs.sql` (generated)
 - Runtime deps loaded via CDN: `react`, `react-dom`, `htm`, `@supabase/supabase-js`, `ts-fsrs`
+- Shared quiz logic (used by both CLI and Web): `/Users/kang/Developer/sehen-sah-gesehen/web/shared/quiz-logic.js`
 
 ### Vercel Environment Variables
 Set these in Vercel project settings:
