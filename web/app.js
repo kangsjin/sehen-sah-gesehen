@@ -78,6 +78,12 @@ function makeTable(card) {
   ].join('\n');
 }
 
+function getQuizValue(card, form) {
+  if (!card || !card.verb) return '';
+  if (card.target_form === form) return '?';
+  return card.verb[form] || '';
+}
+
 async function fetchRuntimeConfig() {
   const res = await fetch('/api/config', { cache: 'no-store' });
   if (!res.ok) {
@@ -437,6 +443,24 @@ function App() {
               </div>
             </div>
             <pre className="table">${tableText}</pre>
+            <div className="quiz-mobile">
+              <div className="m-row">
+                <span className="m-label">Infinitive</span>
+                <span className="m-value">${getQuizValue(card, 'infinitive')}</span>
+              </div>
+              <div className="m-row">
+                <span className="m-label">Praeteritum</span>
+                <span className="m-value">${getQuizValue(card, 'praeteritum')}</span>
+              </div>
+              <div className="m-row">
+                <span className="m-label">Partizip2</span>
+                <span className="m-value">${getQuizValue(card, 'partizip2')}</span>
+              </div>
+              <div className="m-row">
+                <span className="m-label">English</span>
+                <span className="m-value">${card?.verb?.english_meaning || ''}</span>
+              </div>
+            </div>
             <div className="row">
               <input
                 value=${answer}

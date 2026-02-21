@@ -102,7 +102,30 @@ pre {
   padding: 10px;
 }
 .table { overflow-x: auto; white-space: pre; }
+.quiz-mobile { display: none; }
+.m-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  background: #0a111c;
+}
+.m-row:first-child { border-top-left-radius: 8px; border-top-right-radius: 8px; }
+.m-row:last-child {
+  border-bottom: 1px solid var(--line);
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+.m-label { color: var(--muted); }
+.m-value { color: var(--text); font-weight: 600; text-align: right; }
 .ok { color: var(--ok); }
 .bad { color: var(--bad); }
 .hidden { display: none; }
-@media (max-width: 700px) { .terminal { margin: 0; border-radius: 0; } }
+@media (max-width: 700px) {
+  .terminal { margin: 0; border-radius: 0; }
+  .table { display: none; }
+  .quiz-mobile { display: block; margin-top: 10px; }
+  .row-space { align-items: flex-start; }
+}
