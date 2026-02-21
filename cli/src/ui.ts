@@ -1,6 +1,6 @@
 import type readline from 'node:readline';
 import type { DueCard, UserSummary } from './types';
-const sharedQuizLogic = require('../web/shared/quiz-logic.js') as {
+const sharedQuizLogic = require('../../shared/quiz-logic.js') as {
   canonicalizeAnswer: (input: string) => string;
 };
 

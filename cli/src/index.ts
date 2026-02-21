@@ -10,7 +10,7 @@ import { ask, buildQuizTable, green, isCorrect, red } from './ui';
 import { fsrsStateToDb, nextFsrsCard } from './fsrs-engine';
 import { resolveSupabaseConfig } from './cli-config';
 
-const sharedQuizLogic = require('../web/shared/quiz-logic.js') as {
+const sharedQuizLogic = require('../../shared/quiz-logic.js') as {
   gradeFromResponseTime: (seconds: number) => 2 | 3 | 4;
 };
 
@@ -40,7 +40,7 @@ interface SupabaseCardRow {
 }
 
 function loadEnvFromDotLocal(): void {
-  const envPath = path.join(__dirname, '..', '.env.local');
+  const envPath = path.join(process.cwd(), '.env.local');
   if (!fs.existsSync(envPath)) return;
 
   const content = fs.readFileSync(envPath, 'utf8');

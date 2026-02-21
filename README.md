@@ -1,20 +1,23 @@
 # sehen-sah-gesehen
 
-Simple German irregular verb trainer.
+Simple German irregular verb trainer (Web + CLI) using Supabase.
 
-## What It Is
-- Web app + CLI
-- Google login (Supabase Auth)
-- FSRS scheduling per form (`infinitive`, `praeteritum`, `partizip2`)
+## Structure
+- `web/`: web app UI
+- `cli/src/`: CLI app source (TypeScript)
+- `shared/`: logic shared by web and CLI
+- `api/config.js`: runtime config endpoint for web app
+- `web/supabase/`: schema and seed SQL
 
-## Tech
-- Supabase (Auth + Postgres)
-- Vercel (web deployment)
-- TypeScript (CLI)
+## Shared Logic
+- `shared/quiz-logic.js`
+  - answer normalization
+  - response-time grading (`Easy/Good/Hard`)
 
 ## Web
 - Entry: `web/index.html`
-- Runtime config endpoint: `api/config.js`
+- Deploy on Vercel
+- Uses Supabase via `api/config.js`
 
 ## CLI
 ```bash
@@ -23,11 +26,22 @@ npm run build
 npm start
 ```
 
-## Supabase
-Run SQL in order:
+Optional question count:
+```bash
+node dist/cli/index.js 20
+```
+
+## Supabase Setup
+Run in SQL editor:
 1. `web/supabase/schema.sql`
 2. `web/supabase/seed_verbs.sql`
 
-## Note
-- Use `anon` key for client-side.
-- Never expose `service_role` key.
+Auth setup:
+- Enable Google provider
+- Add redirect URLs:
+  - `https://<your-vercel-domain>/`
+  - `http://127.0.0.1:54321/auth/callback`
+
+## Security
+- `anon` key is safe for client usage
+- never expose `service_role` key
