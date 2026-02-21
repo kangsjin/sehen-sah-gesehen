@@ -2,99 +2,72 @@
 
 # sehen-sah-gesehen
 
-A console-based German irregular verb trainer with per-form FSRS scheduling.
+A German irregular verb trainer with FSRS scheduling.
 
-## What It Does
-- Trains German verb forms: `infinitive`, `praeteritum`, `partizip2`
-- Uses a table-style quiz in terminal
-- Tracks progress per user
-- Schedules reviews with `ts-fsrs`
-- Stores lexicon and learning data in separate SQLite files
+## Core Features
+- Trains `infinitive`, `praeteritum`, `partizip2`
+- One hidden form (`?`) in table-style quiz
+- Per-user scheduling unit: `(user_id, verb_id, target_form)`
+- Auto recall grade by response speed:
+  - `<= 3s` => `Easy`
+  - `<= 8s` => `Good`
+  - `> 8s` => `Hard`
 
-## Project Structure
-- `src/index.ts`: app entrypoint
-- `src/repository.ts`: DB schema, queries, persistence
-- `src/fsrs-engine.ts`: `ts-fsrs` integration
-- `src/ui.ts`: CLI prompts and table rendering
-- `src/db.ts`: sqlite3 command wrapper
-- `src/types.ts`: shared types
-- `db/lexicon.sqlite`: verb dictionary data
-- `db/learning.sqlite`: user/login/review/scheduling data
-- `db/schema_user_fsrs.sql`: schema reference/migration SQL
-
-## Requirements
-- Node.js 18+
-- `sqlite3` CLI installed and available in PATH
-
-## Install
+## CLI App (TypeScript)
+- Entry: `/Users/kang/Developer/sehen-sah-gesehen/src/index.ts`
+- Build:
 ```bash
 cd /Users/kang/Developer/sehen-sah-gesehen
 npm install
-```
-
-## Run
-Build TypeScript:
-```bash
 npm run build
 ```
-
-Start app:
+- Run:
 ```bash
 npm start
 ```
 
-Optional question count:
+## Databases (Local CLI)
+- Lexicon: `/Users/kang/Developer/sehen-sah-gesehen/db/lexicon.sqlite`
+- Learning: `/Users/kang/Developer/sehen-sah-gesehen/db/learning.sqlite`
+
+## React Web App (Vercel + Supabase)
+- Web files:
+  - `/Users/kang/Developer/sehen-sah-gesehen/web/index.html`
+  - `/Users/kang/Developer/sehen-sah-gesehen/web/app.js`
+  - `/Users/kang/Developer/sehen-sah-gesehen/web/styles.css`
+- Supabase SQL:
+  - `/Users/kang/Developer/sehen-sah-gesehen/web/supabase/schema.sql`
+  - `/Users/kang/Developer/sehen-sah-gesehen/web/supabase/seed_verbs.sql` (generated)
+- Runtime deps loaded via CDN: `react`, `react-dom`, `htm`, `@supabase/supabase-js`, `ts-fsrs`
+- Create `/Users/kang/Developer/sehen-sah-gesehen/web/config.js` from `/Users/kang/Developer/sehen-sah-gesehen/web/config.example.js` and set your Supabase values
+
+### Supabase Setup
+1. Run `/Users/kang/Developer/sehen-sah-gesehen/web/supabase/schema.sql` in Supabase SQL editor.
+2. Load verbs data by running `/Users/kang/Developer/sehen-sah-gesehen/web/supabase/seed_verbs.sql`.
+3. In Supabase Auth, enable Google provider.
+4. Add redirect URL:
+   - `https://<your-vercel-domain>/`
+
+### If You Provide Your Own SQLite DB (verbs seed) (verbs seed)
+Generate seed SQL from your DB:
 ```bash
-node dist/index.js 20
+cd /Users/kang/Developer/sehen-sah-gesehen
+./web/supabase/build_seed_sql.sh /absolute/path/to/your_lexicon.sqlite web/supabase/seed_verbs.sql
 ```
+Then run the generated `seed_verbs.sql` in Supabase SQL editor.
 
-## Login Flow
-On startup:
-- Existing users are shown in a table (`Last Login`, `Known`, `Weak`, `Due`)
-- Choose by number, or
-- Press `n` to create a new user
+### Deploy on Vercel
+1. Import this repo in Vercel.
+2. `vercel.json` already rewrites `/` to `/web/index.html`.
+3. Deploy.
+4. Set  with your Supabase URL/anon key, deploy, then sign in with Google.
 
-## Quiz Flow
-- One form is hidden with `?` in a row:
-  - `Infinitive`
-  - `Praeteritum`
-  - `Partizip2`
-- Enter answer and press Enter
-- If correct, recall quality is auto-graded by response time:
-  - `<= 3s` = `Easy`
-  - `<= 8s` = `Good`
-  - `> 8s` = `Hard`
-- If incorrect, correct answer is shown in red
-- Type `q` during quiz to quit
-
-## FSRS Notes
-- Scheduler: `ts-fsrs`
-- Unit of scheduling: `(user_id, verb_id, target_form)`
-- So each verb has 3 independent cards per user
-
-## Database Overview
-`db/learning.sqlite` main tables:
-- `users`
-- `user_metadata`
-- `user_cards`
-- `review_logs`
-
-`db/lexicon.sqlite` main tables:
-- `verbs`
-- `sources`
-- `verb_sources`
-
-## Development
-Build only:
-```bash
-npm run build
-```
-
-Run build + app:
-```bash
-npm run dev
-```
+## Supabase Table Design
+- `public.verbs`: shared verb dictionary (provided by you)
+- `public.user_cards`: per-user FSRS state per form
+- `public.review_logs`: per-user review history
+- `public.init_user_cards(uuid)`: initializes missing cards for the logged-in user
 
 ## Notes
-- `node_modules/` and `dist/` are git-ignored.
-- `db/learning.sqlite` is user state and can be reset without touching lexicon data.
+- `db/learning.sqlite` is local runtime state for CLI mode.
+- Web mode uses Supabase (shared service DB), not local SQLite.
