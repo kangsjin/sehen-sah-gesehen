@@ -3,6 +3,15 @@ import { QUESTION_COUNT } from './config';
 import { ensureFsrsSchema, ensureUser, listUsers, loadDueCards, persistReview } from './repository';
 import { ask, buildQuizTable, green, isCorrect, red, renderUsersTable } from './ui';
 
+const EASY_SECONDS = 3;
+const GOOD_SECONDS = 8;
+
+function gradeFromResponseTime(seconds: number): 2 | 3 | 4 {
+  if (seconds <= EASY_SECONDS) return 4; // Easy
+  if (seconds <= GOOD_SECONDS) return 3; // Good
+  return 2; // Hard
+}
+
 async function promptUserLogin(rl: readline.Interface): Promise<string> {
   while (true) {
     const users = listUsers();
@@ -65,16 +74,15 @@ async function run(): Promise<void> {
   for (const card of cards) {
     const prompt = [`[${solved + 1}/${cards.length}]`, buildQuizTable(card), '> '].join('\n');
 
+    const startMs = Date.now();
     const input = await ask(rl, prompt);
+    const elapsedSec = (Date.now() - startMs) / 1000;
     if (input.trim().toLowerCase() === 'q') break;
 
     const exact = isCorrect(input, card.answer);
     let grade: 1 | 2 | 3 | 4 = 1;
     if (exact) {
-      const g = (await ask(rl, 'Rate recall [h=hard, g=good, e=easy] (default g): ')).trim().toLowerCase();
-      if (g === 'h') grade = 2;
-      else if (g === 'e') grade = 4;
-      else grade = 3;
+      grade = gradeFromResponseTime(elapsedSec);
     }
 
     const next = persistReview(userId, card, input, grade);
@@ -82,7 +90,10 @@ async function run(): Promise<void> {
 
     if (grade > 1) {
       score += 1;
-      console.log(`${green('Correct')} (next review in ~${next.intervalDays.toFixed(1)} days)\n`);
+      const gradeLabel = grade === 4 ? 'Easy' : grade === 3 ? 'Good' : 'Hard';
+      console.log(
+        `${green('Correct')} [${gradeLabel}, ${elapsedSec.toFixed(1)}s] (next review in ~${next.intervalDays.toFixed(1)} days)\n`
+      );
     } else {
       console.log(red(`Incorrect (answer: ${card.answer})`));
       console.log(`Next review: immediate to ~${next.intervalDays.toFixed(1)} days\n`);
