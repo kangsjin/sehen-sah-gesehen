@@ -161,15 +161,19 @@ function App() {
       .eq('user_id', sessionUser.id)
       .lte('due_at', nowIso)
       .order('due_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      .limit(30);
 
     if (error) throw error;
 
-    setCard(data || null);
+    let nextCard = null;
+    if (data && data.length > 0) {
+      nextCard = data[Math.floor(Math.random() * data.length)];
+    }
+
+    setCard(nextCard);
     setAnswer('');
     setShownAt(Date.now());
-    setResult(data ? 'Type answer and submit.' : '');
+    setResult(nextCard ? 'Type answer and submit.' : '');
   }
 
   async function handleGoogleLogin() {
