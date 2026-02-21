@@ -58,10 +58,10 @@ On startup:
   - `Praeteritum`
   - `Partizip2`
 - Enter answer and press Enter
-- If correct, choose recall quality:
-  - `h` = hard
-  - `g` = good (default)
-  - `e` = easy
+- If correct, recall quality is auto-graded by response time:
+  - `<= 3s` = `Easy`
+  - `<= 8s` = `Good`
+  - `> 8s` = `Hard`
 - If incorrect, correct answer is shown in red
 - Type `q` during quiz to quit
 
