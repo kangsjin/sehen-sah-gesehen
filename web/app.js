@@ -7,9 +7,6 @@ import { fsrs, generatorParameters, Rating, State } from 'https://esm.sh/ts-fsrs
 const html = htm.bind(React.createElement);
 const srs = fsrs(generatorParameters({ request_retention: 0.9, enable_fuzz: false, enable_short_term: false }));
 
-const SUPABASE_URL = window.__APP_CONFIG__?.supabaseUrl || '';
-const SUPABASE_ANON_KEY = window.__APP_CONFIG__?.supabaseAnonKey || '';
-
 function canonical(s) {
   return String(s || '')
     .trim()
@@ -77,10 +74,26 @@ function makeTable(card) {
   ].join('\n');
 }
 
+async function fetchRuntimeConfig() {
+  const res = await fetch('/api/config', { cache: 'no-store' });
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}));
+    throw new Error(payload.error || 'Failed to load runtime config from /api/config');
+  }
+
+  const cfg = await res.json();
+  if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+    throw new Error('Invalid runtime config from /api/config');
+  }
+
+  return cfg;
+}
+
 function App() {
   const [supabase, setSupabase] = useState(null);
+  const [runtimeConfig, setRuntimeConfig] = useState(null);
   const [user, setUser] = useState(null);
-  const [status, setStatus] = useState('Not logged in.');
+  const [status, setStatus] = useState('Initializing...');
   const [result, setResult] = useState('No question loaded.');
   const [answer, setAnswer] = useState('');
   const [card, setCard] = useState(null);
@@ -88,13 +101,14 @@ function App() {
 
   const tableText = useMemo(() => makeTable(card), [card]);
 
-  async function buildClient() {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      setStatus('Missing config: set supabaseUrl and supabaseAnonKey in web/config.js');
-      return null;
+  async function buildClient(cfg = runtimeConfig) {
+    let nextCfg = cfg;
+    if (!nextCfg) {
+      nextCfg = await fetchRuntimeConfig();
+      setRuntimeConfig(nextCfg);
     }
 
-    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const client = createClient(nextCfg.supabaseUrl, nextCfg.supabaseAnonKey);
     const { data, error } = await client.auth.getSession();
     if (error) {
       setStatus(`Init error: ${error.message}`);
@@ -104,7 +118,6 @@ function App() {
     setSupabase(client);
     setUser(data.session?.user || null);
     setStatus(data.session?.user ? `Logged in: ${data.session.user.email}` : 'Not logged in.');
-
     return client;
   }
 
@@ -266,7 +279,11 @@ function App() {
 
     async function init() {
       try {
-        const client = await buildClient();
+        const cfg = await fetchRuntimeConfig();
+        if (cancelled) return;
+        setRuntimeConfig(cfg);
+
+        const client = await buildClient(cfg);
         if (!client || cancelled) return;
 
         const { data } = await client.auth.getSession();
@@ -296,7 +313,7 @@ function App() {
 
       <section className="panel">
         <h2>Supabase Setup</h2>
-        <p>This deployment uses fixed Supabase config from <code>web/config.js</code>.</p>
+        <p>Runtime config is loaded from <code>/api/config</code> (Vercel environment variables).</p>
         <div className="row">
           <button onClick=${handleGoogleLogin}>Sign in with Google</button>
           <button className="ghost" onClick=${handleLogout}>Sign out</button>

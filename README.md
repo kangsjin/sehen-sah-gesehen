@@ -35,20 +35,29 @@ npm start
   - `/Users/kang/Developer/sehen-sah-gesehen/web/index.html`
   - `/Users/kang/Developer/sehen-sah-gesehen/web/app.js`
   - `/Users/kang/Developer/sehen-sah-gesehen/web/styles.css`
+- Runtime config endpoint:
+  - `/Users/kang/Developer/sehen-sah-gesehen/api/config.js`
 - Supabase SQL:
   - `/Users/kang/Developer/sehen-sah-gesehen/web/supabase/schema.sql`
   - `/Users/kang/Developer/sehen-sah-gesehen/web/supabase/seed_verbs.sql` (generated)
 - Runtime deps loaded via CDN: `react`, `react-dom`, `htm`, `@supabase/supabase-js`, `ts-fsrs`
-- Create `/Users/kang/Developer/sehen-sah-gesehen/web/config.js` from `/Users/kang/Developer/sehen-sah-gesehen/web/config.example.js` and set your Supabase values
+
+### Vercel Environment Variables
+Set these in Vercel project settings:
+- `SUPABASE_URL` = `https://<your-project>.supabase.co`
+- `SUPABASE_ANON_KEY` = Supabase `anon public` key
+
+The app loads them at runtime from `/api/config`.
 
 ### Supabase Setup
 1. Run `/Users/kang/Developer/sehen-sah-gesehen/web/supabase/schema.sql` in Supabase SQL editor.
 2. Load verbs data by running `/Users/kang/Developer/sehen-sah-gesehen/web/supabase/seed_verbs.sql`.
 3. In Supabase Auth, enable Google provider.
-4. Add redirect URL:
+4. In Supabase `Authentication -> URL Configuration`, add:
    - `https://<your-vercel-domain>/`
+   - `http://localhost:4173`
 
-### If You Provide Your Own SQLite DB (verbs seed) (verbs seed)
+### If You Provide Your Own SQLite DB (verbs seed)
 Generate seed SQL from your DB:
 ```bash
 cd /Users/kang/Developer/sehen-sah-gesehen
@@ -59,8 +68,9 @@ Then run the generated `seed_verbs.sql` in Supabase SQL editor.
 ### Deploy on Vercel
 1. Import this repo in Vercel.
 2. `vercel.json` already rewrites `/` to `/web/index.html`.
-3. Deploy.
-4. Set  with your Supabase URL/anon key, deploy, then sign in with Google.
+3. Set Vercel env vars: `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
+4. Deploy.
+5. Open app and sign in with Google.
 
 ## Supabase Table Design
 - `public.verbs`: shared verb dictionary (provided by you)
