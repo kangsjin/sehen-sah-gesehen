@@ -294,10 +294,20 @@ async function persistReview(
   return Number(next.card.scheduled_days || 0);
 }
 
+async function askYesNo(rl: readline.Interface, prompt: string, defaultYes: boolean): Promise<boolean> {
+  const suffix = defaultYes ? ' [Y/n]: ' : ' [y/N]: ';
+  const answer = (await ask(rl, `${prompt}${suffix}`)).trim().toLowerCase();
+  if (!answer) return defaultYes;
+  if (answer === 'y' || answer === 'yes') return true;
+  if (answer === 'n' || answer === 'no') return false;
+  return defaultYes;
+}
+
 async function run(): Promise<void> {
   loadEnvFromDotLocal();
 
   const { supabaseUrl, supabaseAnonKey } = await resolveSupabaseConfig();
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
@@ -308,56 +318,95 @@ async function run(): Promise<void> {
     },
   });
 
-  console.log('Google login is required for CLI.');
+  const proceedLogin = await askYesNo(rl, 'Proceed with Google login?', true);
+  if (!proceedLogin) {
+    rl.close();
+    console.log('Login cancelled.');
+    return;
+  }
+
+  console.log('\nGoogle login is required for CLI.');
   const userId = await loginWithGoogle(supabase);
 
   await ensureUserCards(supabase, userId);
 
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-
   console.log(`\nLogged in as ${userId}`);
+  const startQuiz = await askYesNo(rl, 'Start quiz now?', true);
+  if (!startQuiz) {
+    rl.close();
+    console.log('Quiz cancelled.');
+    return;
+  }
+
   console.log(`Up to ${QUESTION_COUNT} due questions will be asked.`);
   console.log("Type 'q' to quit.\n");
 
-  let solved = 0;
-  let score = 0;
-  let lastTargetForm: TargetForm | '' = '';
+  let totalSolved = 0;
+  let totalScore = 0;
+  let keepGoing = true;
 
-  while (solved < QUESTION_COUNT) {
-    const card = await loadNextDueCard(supabase, userId, lastTargetForm);
-    if (!card) {
-      if (solved === 0) console.log('No cards are due right now.');
+  while (keepGoing) {
+    let solved = 0;
+    let score = 0;
+    let lastTargetForm: TargetForm | '' = '';
+    let quitRequested = false;
+
+    while (solved < QUESTION_COUNT) {
+      const card = await loadNextDueCard(supabase, userId, lastTargetForm);
+      if (!card) {
+        if (solved === 0) console.log('No cards are due right now.');
+        break;
+      }
+
+      lastTargetForm = card.targetForm;
+      const prompt = [`[${solved + 1}/${QUESTION_COUNT}]`, buildQuizTable(card), '> '].join('\n');
+      const startMs = Date.now();
+      const input = await ask(rl, prompt);
+      const elapsedSec = (Date.now() - startMs) / 1000;
+
+      if (input.trim().toLowerCase() === 'q') {
+        quitRequested = true;
+        break;
+      }
+
+      const exact = isCorrect(input, card.answer);
+      let grade: 1 | 2 | 3 | 4 = 1;
+      if (exact) grade = sharedQuizLogic.gradeFromResponseTime(elapsedSec);
+
+      const intervalDays = await persistReview(supabase, userId, card, input, grade);
+
+      solved += 1;
+      if (exact) {
+        score += 1;
+        const gradeLabel = grade === 4 ? 'Easy' : grade === 3 ? 'Good' : 'Hard';
+        console.log(`${green('Correct')} [${gradeLabel}, ${elapsedSec.toFixed(1)}s] (next ~${intervalDays.toFixed(1)} days)\n`);
+      } else {
+        console.log(red(`Incorrect (answer: ${card.answer})`));
+        console.log(`Next review: immediate to ~${intervalDays.toFixed(1)} days\n`);
+      }
+    }
+
+    totalSolved += solved;
+    totalScore += score;
+
+    if (solved > 0) {
+      console.log(`Round score: ${score}/${solved}`);
+    }
+
+    if (quitRequested) {
+      keepGoing = false;
       break;
     }
 
-    lastTargetForm = card.targetForm;
-    const prompt = [`[${solved + 1}/${QUESTION_COUNT}]`, buildQuizTable(card), '> '].join('\n');
-    const startMs = Date.now();
-    const input = await ask(rl, prompt);
-    const elapsedSec = (Date.now() - startMs) / 1000;
-
-    if (input.trim().toLowerCase() === 'q') break;
-
-    const exact = isCorrect(input, card.answer);
-    let grade: 1 | 2 | 3 | 4 = 1;
-    if (exact) grade = sharedQuizLogic.gradeFromResponseTime(elapsedSec);
-
-    const intervalDays = await persistReview(supabase, userId, card, input, grade);
-
-    solved += 1;
-    if (exact) {
-      score += 1;
-      const gradeLabel = grade === 4 ? 'Easy' : grade === 3 ? 'Good' : 'Hard';
-      console.log(`${green('Correct')} [${gradeLabel}, ${elapsedSec.toFixed(1)}s] (next ~${intervalDays.toFixed(1)} days)\n`);
-    } else {
-      console.log(red(`Incorrect (answer: ${card.answer})`));
-      console.log(`Next review: immediate to ~${intervalDays.toFixed(1)} days\n`);
+    const more = await askYesNo(rl, 'Do another round?', false);
+    if (!more) {
+      keepGoing = false;
     }
   }
 
   rl.close();
-  if (solved > 0) {
-    console.log(`Score: ${score}/${solved}`);
+  if (totalSolved > 0) {
+    console.log(`Total score: ${totalScore}/${totalSolved}`);
   }
 }
 
