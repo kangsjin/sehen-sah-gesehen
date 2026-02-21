@@ -40,6 +40,7 @@ create table if not exists public.review_logs (
   user_id uuid not null references auth.users(id) on delete cascade,
   verb_id text not null references public.verbs(id) on delete cascade,
   target_form text not null check (target_form in ('infinitive', 'praeteritum', 'partizip2')),
+  client_source text not null default 'unknown',
   rating integer not null,
   correct boolean not null,
   reviewed_at timestamptz not null default now(),
@@ -52,6 +53,9 @@ create table if not exists public.review_logs (
 );
 
 create index if not exists review_logs_user_time_idx on public.review_logs (user_id, reviewed_at desc);
+
+alter table public.review_logs
+  add column if not exists client_source text not null default 'unknown';
 
 grant select on public.verbs to anon, authenticated;
 grant select, insert, update, delete on public.user_cards to authenticated;

@@ -8,8 +8,9 @@ import { QUESTION_COUNT } from './config';
 import type { DbState, DueCard } from './types';
 import { ask, buildQuizTable, green, isCorrect, red } from './ui';
 import { fsrsStateToDb, nextFsrsCard } from './fsrs-engine';
+import { resolveSupabaseConfig } from './cli-config';
 
-const sharedQuizLogic = require('../../web/shared/quiz-logic.js') as {
+const sharedQuizLogic = require('../web/shared/quiz-logic.js') as {
   gradeFromResponseTime: (seconds: number) => 2 | 3 | 4;
 };
 
@@ -277,6 +278,7 @@ async function persistReview(
     user_id: userId,
     verb_id: card.verbId,
     target_form: card.targetForm,
+    client_source: 'cli',
     rating: grade,
     correct,
     reviewed_at: now.toISOString(),
@@ -295,11 +297,7 @@ async function persistReview(
 async function run(): Promise<void> {
   loadEnvFromDotLocal();
 
-  const supabaseUrl = process.env.SUPABASE_URL || '';
-  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing SUPABASE_URL or SUPABASE_ANON_KEY (set env vars or .env.local)');
-  }
+  const { supabaseUrl, supabaseAnonKey } = await resolveSupabaseConfig();
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {

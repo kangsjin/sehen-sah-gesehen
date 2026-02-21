@@ -16,10 +16,12 @@ A German irregular verb trainer with FSRS scheduling (CLI + Web both use Supabas
 ## CLI App (TypeScript, Supabase)
 - Entry: `/Users/kang/Developer/sehen-sah-gesehen/src/index.ts`
 - Uses Google OAuth login and Supabase (`user_cards`, `review_logs`)
-- Required env vars:
+- No local config file is required for end users
+- CLI loads Supabase runtime config from: `https://sehen-sah-gesehen.vercel.app/api/config`
+- Optional override with env vars:
   - `SUPABASE_URL`
   - `SUPABASE_ANON_KEY`
-- Optional: store them in `/Users/kang/Developer/sehen-sah-gesehen/.env.local`
+  - `APP_CONFIG_URL` (custom config endpoint)
 
 Run:
 ```bash
@@ -79,6 +81,7 @@ Then run the generated `seed_verbs.sql` in Supabase SQL editor.
 - `public.verbs`: shared verb dictionary (provided by you)
 - `public.user_cards`: per-user FSRS state per form
 - `public.review_logs`: per-user review history
+  - includes `client_source` (`web` or `cli`)
 - `public.init_user_cards(uuid)`: initializes missing cards for the logged-in user
 
 ## Notes

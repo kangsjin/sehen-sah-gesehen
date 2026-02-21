@@ -319,6 +319,7 @@ function App() {
         user_id: user.id,
         verb_id: card.verb_id,
         target_form: card.target_form,
+        client_source: 'web',
         rating: grade,
         correct,
         reviewed_at: now.toISOString(),
