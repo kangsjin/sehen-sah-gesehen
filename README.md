@@ -16,8 +16,9 @@ A console-based German irregular verb trainer with per-form FSRS scheduling.
 - `src/ui.ts`: CLI prompts and table rendering
 - `src/db.ts`: sqlite3 command wrapper
 - `src/types.ts`: shared types
-- `lexicon.sqlite`: verb dictionary data
-- `learning.sqlite`: user/login/review/scheduling data
+- `db/lexicon.sqlite`: verb dictionary data
+- `db/learning.sqlite`: user/login/review/scheduling data
+- `db/schema_user_fsrs.sql`: schema reference/migration SQL
 
 ## Requirements
 - Node.js 18+
@@ -70,13 +71,13 @@ On startup:
 - So each verb has 3 independent cards per user
 
 ## Database Overview
-`learning.sqlite` main tables:
+`db/learning.sqlite` main tables:
 - `users`
 - `user_metadata`
 - `user_cards`
 - `review_logs`
 
-`lexicon.sqlite` main tables:
+`db/lexicon.sqlite` main tables:
 - `verbs`
 - `sources`
 - `verb_sources`
@@ -94,4 +95,4 @@ npm run dev
 
 ## Notes
 - `node_modules/` and `dist/` are git-ignored.
-- `learning.sqlite` is user state and can be reset without touching lexicon data.
+- `db/learning.sqlite` is user state and can be reset without touching lexicon data.
