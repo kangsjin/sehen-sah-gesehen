@@ -34,6 +34,16 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function vibrate(pattern) {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(pattern);
+    }
+  } catch {
+    // Ignore vibration errors on unsupported browsers.
+  }
+}
+
 function makeTable(card) {
   if (!card || !card.verb) return 'No due cards right now.';
 
@@ -336,9 +346,11 @@ function App() {
       if (correct) {
         const label = grade === 4 ? 'Easy' : grade === 3 ? 'Good' : 'Hard';
         setResult(`Correct [${label}, ${sec.toFixed(1)}s]\nNext review in ~${next.card.scheduled_days} days`);
+        vibrate(50);
         await delay(2000);
       } else {
         setResult(`Incorrect (answer: ${expected})`);
+        vibrate(180);
         await delay(3000);
       }
 
