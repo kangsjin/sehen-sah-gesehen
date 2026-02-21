@@ -181,6 +181,25 @@ async function ensureUserCards(supabase: SupabaseClient, userId: string): Promis
   if (error) throw new Error(`init_user_cards failed: ${error.message}`);
 }
 
+async function getLastSolvedLabel(supabase: SupabaseClient, userId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from('review_logs')
+    .select('reviewed_at')
+    .eq('user_id', userId)
+    .order('reviewed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to load last solved time: ${error.message}`);
+  if (!data?.reviewed_at) return 'Last solved: never';
+
+  const dt = new Date(data.reviewed_at);
+  if (Number.isNaN(dt.getTime())) return 'Last solved: unknown';
+
+  const diffHours = Math.max(0, (Date.now() - dt.getTime()) / (1000 * 60 * 60));
+  return `Last solved: ${dt.toLocaleString()} (${diffHours.toFixed(1)}h ago)`;
+}
+
 async function loadNextDueCard(
   supabase: SupabaseClient,
   userId: string,
@@ -329,8 +348,10 @@ async function run(): Promise<void> {
   const userId = await loginWithGoogle(supabase);
 
   await ensureUserCards(supabase, userId);
+  const lastSolvedLabel = await getLastSolvedLabel(supabase, userId);
 
   console.log(`\nLogged in as ${userId}`);
+  console.log(lastSolvedLabel);
   const startQuiz = await askYesNo(rl, 'Start quiz now?', true);
   if (!startQuiz) {
     rl.close();

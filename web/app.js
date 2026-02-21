@@ -79,6 +79,16 @@ function getQuizValue(card, form) {
   return card.verb[form] || '';
 }
 
+function formatLastSolvedLabel(reviewedAtIso) {
+  if (!reviewedAtIso) return 'Last solved: never';
+  const reviewedAt = new Date(reviewedAtIso);
+  if (Number.isNaN(reviewedAt.getTime())) return 'Last solved: unknown';
+
+  const nowMs = Date.now();
+  const diffHours = Math.max(0, (nowMs - reviewedAt.getTime()) / (1000 * 60 * 60));
+  return `Last solved: ${reviewedAt.toLocaleString()} (${diffHours.toFixed(1)}h ago)`;
+}
+
 async function fetchRuntimeConfig() {
   const res = await fetch('/api/config', { cache: 'no-store' });
   if (!res.ok) {
@@ -105,6 +115,7 @@ function App() {
   const [shownAt, setShownAt] = useState(0);
   const [lastTargetForm, setLastTargetForm] = useState('');
   const [hasStarted, setHasStarted] = useState(false);
+  const [lastSolvedLabel, setLastSolvedLabel] = useState('Last solved: never');
   const [overview, setOverview] = useState({
     totalCards: 0,
     dueCards: 0,
@@ -183,6 +194,21 @@ function App() {
     });
   }
 
+  async function refreshLastSolved(client = supabase, sessionUser = user) {
+    if (!client || !sessionUser) return;
+
+    const { data, error } = await client
+      .from('review_logs')
+      .select('reviewed_at')
+      .eq('user_id', sessionUser.id)
+      .order('reviewed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    setLastSolvedLabel(formatLastSolvedLabel(data?.reviewed_at || ''));
+  }
+
   async function loadNextCard(client = supabase, sessionUser = user) {
     if (!client || !sessionUser) return;
 
@@ -257,6 +283,7 @@ function App() {
     setUser(null);
     setCard(null);
     setHasStarted(false);
+    setLastSolvedLabel('Last solved: never');
     setOverview({ totalCards: 0, dueCards: 0, knownCards: 0, weakCards: 0, accuracy: 0 });
     setResult('No question loaded.');
     setStatus('Not logged in.');
@@ -356,6 +383,7 @@ function App() {
 
       await loadNextCard();
       await refreshOverview();
+      await refreshLastSolved();
     } catch (e) {
       setResult(`Error: ${e.message || String(e)}`);
     }
@@ -378,6 +406,7 @@ function App() {
 
         await ensureUserCards(client, data.session.user);
         await refreshOverview(client, data.session.user);
+        await refreshLastSolved(client, data.session.user);
       } catch (e) {
         if (!cancelled) setStatus(`Init error: ${e.message || String(e)}`);
       }
@@ -401,7 +430,10 @@ function App() {
       <section className="panel">
         ${user
           ? html`<div className="row row-space">
-              <div className="status-line">${status}</div>
+              <div>
+                <div className="status-line">${status}</div>
+                <div className="status-line">${lastSolvedLabel}</div>
+              </div>
               <button className="ghost" onClick=${handleLogout}>Sign out</button>
             </div>`
           : html`<div>
