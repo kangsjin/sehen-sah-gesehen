@@ -2,6 +2,21 @@
 
 Simple German irregular verb trainer (Web + CLI) using Supabase.
 
+## FSRS (Spaced Repetition)
+- This project uses **FSRS** (Free Spaced Repetition Scheduler).
+- FSRS is a modern spaced-repetition algorithm that predicts when you are likely to forget and schedules the next review at the right time.
+- In this app, FSRS is applied per form:
+  - `(user_id, verb_id, target_form)`
+  - so `infinitive`, `praeteritum`, and `partizip2` are tracked independently.
+
+### Why It Is Good
+- More efficient than fixed intervals:
+  - You review less often while keeping high retention.
+- Personalized scheduling:
+  - Intervals adapt to your actual recall quality.
+- Better long-term memory:
+  - Easy cards are delayed longer, weak cards return sooner.
+
 ## Structure
 - `web/`: web app UI
 - `cli/src/`: CLI app source (TypeScript)
