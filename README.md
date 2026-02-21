@@ -1,3 +1,5 @@
+> ℹ️ This source code was built 100% with Codex.
+
 # sehen-sah-gesehen
 
 A console-based German irregular verb trainer with per-form FSRS scheduling.
