@@ -2,7 +2,7 @@
 
 # sehen-sah-gesehen
 
-A German irregular verb trainer with FSRS scheduling.
+A German irregular verb trainer with FSRS scheduling (CLI + Web both use Supabase).
 
 ## Core Features
 - Trains `infinitive`, `praeteritum`, `partizip2`
@@ -13,22 +13,24 @@ A German irregular verb trainer with FSRS scheduling.
   - `<= 8s` => `Good`
   - `> 8s` => `Hard`
 
-## CLI App (TypeScript)
+## CLI App (TypeScript, Supabase)
 - Entry: `/Users/kang/Developer/sehen-sah-gesehen/src/index.ts`
-- Build:
+- Uses Google OAuth login and Supabase (`user_cards`, `review_logs`)
+- Required env vars:
+  - `SUPABASE_URL`
+  - `SUPABASE_ANON_KEY`
+- Optional: store them in `/Users/kang/Developer/sehen-sah-gesehen/.env.local`
+
+Run:
 ```bash
 cd /Users/kang/Developer/sehen-sah-gesehen
 npm install
 npm run build
-```
-- Run:
-```bash
 npm start
 ```
 
-## Databases (Local CLI)
-- Lexicon: `/Users/kang/Developer/sehen-sah-gesehen/db/lexicon.sqlite`
-- Learning: `/Users/kang/Developer/sehen-sah-gesehen/db/learning.sqlite`
+For CLI Google login callback, add this redirect URL in Supabase:
+- `http://127.0.0.1:54321/auth/callback`
 
 ## React Web App (Vercel + Supabase)
 - Web files:
@@ -80,5 +82,5 @@ Then run the generated `seed_verbs.sql` in Supabase SQL editor.
 - `public.init_user_cards(uuid)`: initializes missing cards for the logged-in user
 
 ## Notes
-- `db/learning.sqlite` is local runtime state for CLI mode.
-- Web mode uses Supabase (shared service DB), not local SQLite.
+- CLI and Web both use Supabase (shared service DB).
+- `db/learning.sqlite` remains only as legacy local artifact.

@@ -24,6 +24,8 @@ export interface DueCard {
   lastReviewAt: string;
   dueAt: string;
   nextIntervalDays: number;
+  totalReviews?: number;
+  correctReviews?: number;
 }
 
 export interface PersistResult {

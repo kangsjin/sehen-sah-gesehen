@@ -12,7 +12,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "ts-fsrs": "^5.2.3"
+    "ts-fsrs": "^5.2.3",
+    "@supabase/supabase-js": "^2.57.4"
   },
   "devDependencies": {
     "@types/node": "^24.3.3",
