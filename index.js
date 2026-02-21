@@ -1,18 +1,19 @@
 const { spawnSync } = require('child_process');
 const readline = require('readline');
 const path = require('path');
+const { fsrs, generatorParameters, Rating, State } = require('ts-fsrs');
 
 const LEXICON_DB_PATH = path.join(__dirname, 'lexicon.sqlite');
 const LEARNING_DB_PATH = path.join(__dirname, 'learning.sqlite');
 const QUESTION_COUNT = Number(process.argv[2] || 10);
 const CARD_FORMS = ['infinitive', 'praeteritum', 'partizip2'];
-const REQUEST_RETENTION = 0.9;
-const FSRS45_W = [
-  0.4872, 1.4003, 3.7145, 13.8206, 5.1618, 1.2298, 0.8975, 0.031,
-  1.6474, 0.1367, 1.0461, 2.1072, 0.0793, 0.3246, 1.587, 0.2272, 2.8755,
-];
-const FSRS45_DECAY = -0.5;
-const FSRS45_FACTOR = 19 / 81;
+const srs = fsrs(
+  generatorParameters({
+    request_retention: 0.9,
+    enable_fuzz: false,
+    enable_short_term: false,
+  })
+);
 
 const COLOR = {
   reset: '\x1b[0m',
@@ -127,103 +128,18 @@ function parseDateOrNull(s) {
   return dt;
 }
 
-function daysBetween(a, b) {
-  const ms = Math.max(0, a.getTime() - b.getTime());
-  return ms / (1000 * 60 * 60 * 24);
+function dbStateToFsrs(state) {
+  if (state === 'learning') return State.Learning;
+  if (state === 'review') return State.Review;
+  if (state === 'relearning') return State.Relearning;
+  return State.New;
 }
 
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
-}
-
-function fsrsD0(grade) {
-  const w = FSRS45_W;
-  return clamp(w[4] - (grade - 3) * w[5], 1, 10);
-}
-
-function fsrsDifficultyAfterReview(difficulty, grade) {
-  const w = FSRS45_W;
-  const dPrime = w[7] * fsrsD0(3) + (1 - w[7]) * (difficulty - w[6] * (grade - 3));
-  return clamp(dPrime, 1, 10);
-}
-
-function fsrsRetrievability(elapsedDays, stability) {
-  const s = Math.max(0.001, stability);
-  const t = Math.max(0, elapsedDays);
-  return Math.pow(1 + FSRS45_FACTOR * (t / s), FSRS45_DECAY);
-}
-
-function fsrsNextInterval(stability) {
-  const s = Math.max(0.001, stability);
-  const interval = (s / FSRS45_FACTOR) * (Math.pow(REQUEST_RETENTION, 1 / FSRS45_DECAY) - 1);
-  return Math.max(0, interval);
-}
-
-// FSRS-4.5 update
-// grade: 1=Again, 2=Hard, 3=Good, 4=Easy
-function fsrsUpdate(card, grade, elapsedDays) {
-  const w = FSRS45_W;
-  let stability = Number(card.stability || 0);
-  let difficulty = Number(card.difficulty || 5);
-  let lapses = Number(card.lapses || 0);
-
-  if (stability <= 0 || Number(card.reps || 0) === 0) {
-    const initStability = w[grade - 1];
-    const initDifficulty = fsrsD0(grade);
-    if (grade === 1) {
-      return {
-        stability: Math.max(0.001, initStability),
-        difficulty: initDifficulty,
-        lapses: lapses + 1,
-        intervalDays: 0,
-        state: 'learning',
-      };
-    }
-    return {
-      stability: Math.max(0.001, initStability),
-      difficulty: initDifficulty,
-      lapses,
-      intervalDays: fsrsNextInterval(initStability),
-      state: 'review',
-    };
-  }
-
-  const r = fsrsRetrievability(elapsedDays, stability);
-  const newDifficulty = fsrsDifficultyAfterReview(difficulty, grade);
-
-  if (grade === 1) {
-    const newStability = w[11]
-      * Math.pow(newDifficulty, -w[12])
-      * (Math.pow(stability + 1, w[13]) - 1)
-      * Math.exp(w[14] * (1 - r));
-    return {
-      stability: Math.max(0.001, newStability),
-      difficulty: newDifficulty,
-      lapses: lapses + 1,
-      intervalDays: 0,
-      state: 'learning',
-    };
-  }
-
-  const hardPenalty = grade === 2 ? w[15] : 1;
-  const easyBonus = grade === 4 ? w[16] : 1;
-  const newStability = stability * (
-    Math.exp(w[8])
-      * (11 - newDifficulty)
-      * Math.pow(stability, -w[9])
-      * (Math.exp(w[10] * (1 - r)) - 1)
-      * hardPenalty
-      * easyBonus
-    + 1
-  );
-
-  return {
-    stability: Math.max(0.001, newStability),
-    difficulty: newDifficulty,
-    lapses,
-    intervalDays: fsrsNextInterval(newStability),
-    state: 'review',
-  };
+function fsrsStateToDb(state) {
+  if (state === State.Learning) return 'learning';
+  if (state === State.Review) return 'review';
+  if (state === State.Relearning) return 'relearning';
+  return 'new';
 }
 
 function tableColumns(tableName) {
@@ -429,7 +345,8 @@ function loadDueCards(userId, limit) {
       uc.lapses,
       uc.state,
       COALESCE(uc.last_review_at, ''),
-      COALESCE(uc.due_at, '')
+      COALESCE(uc.due_at, ''),
+      COALESCE(uc.next_interval_days, 0)
     FROM user_cards uc
     JOIN lx.verbs v ON v.id = uc.verb_id
     WHERE uc.user_id = ${uid}
@@ -463,6 +380,7 @@ function loadDueCards(userId, limit) {
       state: r[11] || 'new',
       lastReviewAt: r[12] || '',
       dueAt: r[13] || '',
+      nextIntervalDays: Number(r[14] || 0),
     };
   });
 }
@@ -471,30 +389,42 @@ function persistReview(userId, card, userInput, grade) {
   const rating = grade;
   const correct = grade > 1 ? 1 : 0;
   const now = new Date();
-  const last = parseDateOrNull(card.lastReviewAt);
-  const elapsedDays = last ? daysBetween(now, last) : 0;
-
-  const next = fsrsUpdate(card, grade, elapsedDays);
-  const dueDate = new Date(now.getTime() + next.intervalDays * 24 * 60 * 60 * 1000);
+  const dueDate = parseDateOrNull(card.dueAt) || now;
+  const lastReview = parseDateOrNull(card.lastReviewAt) || undefined;
+  const fsrsCard = {
+    due: dueDate,
+    stability: Number(card.stability || 0),
+    difficulty: Number(card.difficulty || 5),
+    elapsed_days: 0,
+    scheduled_days: Math.max(0, Math.round(Number(card.nextIntervalDays || 0))),
+    learning_steps: 0,
+    reps: Number(card.reps || 0),
+    lapses: Number(card.lapses || 0),
+    state: dbStateToFsrs(card.state),
+    last_review: lastReview,
+  };
+  const nextItem = srs.next(fsrsCard, now, rating);
+  const nextCard = nextItem.card;
+  const nextLog = nextItem.log;
 
   const uid = sqlEscape(userId);
   const verbId = sqlEscape(card.verbId);
   const targetForm = sqlEscape(card.targetForm);
-  const dueAt = sqlEscape(formatSqlDate(dueDate));
+  const dueAt = sqlEscape(formatSqlDate(nextCard.due));
   const nowSql = sqlEscape(formatSqlDate(now));
-  const state = sqlEscape(next.state);
+  const state = sqlEscape(fsrsStateToDb(nextCard.state));
 
   runSql(LEARNING_DB_PATH, `
     UPDATE user_cards
     SET
       due_at = ${dueAt},
-      stability = ${next.stability},
-      difficulty = ${next.difficulty},
-      reps = reps + 1,
-      lapses = ${next.lapses},
+      stability = ${nextCard.stability},
+      difficulty = ${nextCard.difficulty},
+      reps = ${nextCard.reps},
+      lapses = ${nextCard.lapses},
       state = ${state},
       last_review_at = ${nowSql},
-      next_interval_days = ${next.intervalDays},
+      next_interval_days = ${nextCard.scheduled_days},
       total_reviews = total_reviews + 1,
       correct_reviews = correct_reviews + ${correct},
       metadata_json = json_set(
@@ -510,12 +440,14 @@ function persistReview(userId, card, userInput, grade) {
       target_form, user_input, answer_expected
     ) VALUES (
       ${uid}, ${verbId}, ${rating}, ${correct}, ${nowSql},
-      ${next.intervalDays}, ${elapsedDays}, ${next.stability}, ${next.difficulty},
+      ${nextCard.scheduled_days}, ${nextLog.elapsed_days}, ${nextCard.stability}, ${nextCard.difficulty},
       ${targetForm}, ${sqlEscape(userInput)}, ${sqlEscape(card.answer)}
     );
   `);
 
-  return next;
+  return {
+    intervalDays: Number(nextCard.scheduled_days || 0),
+  };
 }
 
 async function run() {
