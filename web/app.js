@@ -45,6 +45,10 @@ function gradeToRating(g) {
   return Rating.Easy;
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function makeTable(card) {
   if (!card || !card.verb) return 'No due cards right now.';
 
@@ -98,6 +102,15 @@ function App() {
   const [answer, setAnswer] = useState('');
   const [card, setCard] = useState(null);
   const [shownAt, setShownAt] = useState(0);
+  const [lastTargetForm, setLastTargetForm] = useState('');
+  const [hasStarted, setHasStarted] = useState(false);
+  const [overview, setOverview] = useState({
+    totalCards: 0,
+    dueCards: 0,
+    knownCards: 0,
+    weakCards: 0,
+    accuracy: 0,
+  });
 
   const tableText = useMemo(() => makeTable(card), [card]);
 
@@ -117,6 +130,7 @@ function App() {
 
     setSupabase(client);
     setUser(data.session?.user || null);
+    setHasStarted(false);
     setStatus(data.session?.user ? `Logged in: ${data.session.user.email}` : 'Not logged in.');
     return client;
   }
@@ -124,6 +138,48 @@ function App() {
   async function ensureUserCards(client, sessionUser) {
     const { error } = await client.rpc('init_user_cards', { p_user_id: sessionUser.id });
     if (error) throw error;
+  }
+
+  async function refreshOverview(client = supabase, sessionUser = user) {
+    if (!client || !sessionUser) return;
+
+    const nowIso = new Date().toISOString();
+    const [{ count: totalCount, error: totalErr }, { count: dueCount, error: dueErr }, { data: perfRows, error: perfErr }] =
+      await Promise.all([
+        client.from('user_cards').select('*', { count: 'exact', head: true }).eq('user_id', sessionUser.id),
+        client.from('user_cards').select('*', { count: 'exact', head: true }).eq('user_id', sessionUser.id).lte('due_at', nowIso),
+        client.from('user_cards').select('total_reviews,correct_reviews').eq('user_id', sessionUser.id),
+      ]);
+
+    if (totalErr || dueErr || perfErr) {
+      throw totalErr || dueErr || perfErr;
+    }
+
+    let knownCards = 0;
+    let weakCards = 0;
+    let totalReviews = 0;
+    let correctReviews = 0;
+
+    for (const row of perfRows || []) {
+      const reviews = Number(row.total_reviews || 0);
+      const correct = Number(row.correct_reviews || 0);
+      const rate = reviews > 0 ? correct / reviews : 0;
+
+      totalReviews += reviews;
+      correctReviews += correct;
+
+      if (reviews >= 3 && rate >= 0.85) knownCards += 1;
+      if (reviews >= 3 && rate < 0.6) weakCards += 1;
+    }
+
+    const accuracy = totalReviews > 0 ? Math.round((correctReviews / totalReviews) * 100) : 0;
+    setOverview({
+      totalCards: Number(totalCount || 0),
+      dueCards: Number(dueCount || 0),
+      knownCards,
+      weakCards,
+      accuracy,
+    });
   }
 
   async function loadNextCard(client = supabase, sessionUser = user) {
@@ -161,13 +217,18 @@ function App() {
       .eq('user_id', sessionUser.id)
       .lte('due_at', nowIso)
       .order('due_at', { ascending: true })
-      .limit(30);
+      .limit(500);
 
     if (error) throw error;
 
     let nextCard = null;
     if (data && data.length > 0) {
-      nextCard = data[Math.floor(Math.random() * data.length)];
+      const differentFormPool = lastTargetForm
+        ? data.filter((row) => row.target_form !== lastTargetForm)
+        : data;
+      const pool = differentFormPool.length > 0 ? differentFormPool : data;
+      nextCard = pool[Math.floor(Math.random() * pool.length)];
+      setLastTargetForm(nextCard.target_form || '');
     }
 
     setCard(nextCard);
@@ -194,8 +255,23 @@ function App() {
     await supabase.auth.signOut();
     setUser(null);
     setCard(null);
+    setHasStarted(false);
+    setOverview({ totalCards: 0, dueCards: 0, knownCards: 0, weakCards: 0, accuracy: 0 });
     setResult('No question loaded.');
     setStatus('Not logged in.');
+  }
+
+  async function handleStartQuiz() {
+    if (!supabase || !user) return;
+    await loadNextCard();
+    setHasStarted(true);
+  }
+
+  function handleExitQuiz() {
+    setHasStarted(false);
+    setCard(null);
+    setAnswer('');
+    setResult('No question loaded.');
   }
 
   async function handleSubmit() {
@@ -268,11 +344,14 @@ function App() {
       if (correct) {
         const label = grade === 4 ? 'Easy' : grade === 3 ? 'Good' : 'Hard';
         setResult(`Correct [${label}, ${sec.toFixed(1)}s]\nNext review in ~${next.card.scheduled_days} days`);
+        await delay(2000);
       } else {
         setResult(`Incorrect (answer: ${expected})`);
+        await delay(3000);
       }
 
       await loadNextCard();
+      await refreshOverview();
     } catch (e) {
       setResult(`Error: ${e.message || String(e)}`);
     }
@@ -294,7 +373,7 @@ function App() {
         if (!data.session?.user || cancelled) return;
 
         await ensureUserCards(client, data.session.user);
-        await loadNextCard(client, data.session.user);
+        await refreshOverview(client, data.session.user);
       } catch (e) {
         if (!cancelled) setStatus(`Init error: ${e.message || String(e)}`);
       }
@@ -312,24 +391,50 @@ function App() {
     <main className="terminal">
       <header className="terminal__header">
         <div className="dots"><span></span><span></span><span></span></div>
-        <h1>sehen-sah-gesehen (React)</h1>
+        <h1>sehen-sah-gesehen</h1>
       </header>
 
       <section className="panel">
-        <h2>Supabase Setup</h2>
-        <p>Runtime config is loaded from <code>/api/config</code> (Vercel environment variables).</p>
-        <div className="row">
-          <button onClick=${handleGoogleLogin}>Sign in with Google</button>
-          <button className="ghost" onClick=${handleLogout}>Sign out</button>
-        </div>
-        <pre>${status}</pre>
+        ${user
+          ? html`<div className="row row-space">
+              <div className="status-line">${status}</div>
+              <button className="ghost" onClick=${handleLogout}>Sign out</button>
+            </div>`
+          : html`<div>
+              <div className="row">
+                <button onClick=${handleGoogleLogin}>Sign in with Google</button>
+              </div>
+              <pre>${status}</pre>
+            </div>`}
       </section>
 
-      ${user
+      ${user && !hasStarted
+        ? html`<section className="panel">
+            <div className="row row-space">
+              <h2>Overview</h2>
+              <button className="ghost" onClick=${() => refreshOverview()}>Refresh</button>
+            </div>
+            <div className="stats-grid">
+              <div className="stat-card"><div className="stat-label">Total</div><div className="stat-value">${overview.totalCards}</div></div>
+              <div className="stat-card"><div className="stat-label">Due</div><div className="stat-value">${overview.dueCards}</div></div>
+              <div className="stat-card"><div className="stat-label">Known</div><div className="stat-value">${overview.knownCards}</div></div>
+              <div className="stat-card"><div className="stat-label">Weak</div><div className="stat-value">${overview.weakCards}</div></div>
+              <div className="stat-card"><div className="stat-label">Accuracy</div><div className="stat-value">${overview.accuracy}%</div></div>
+            </div>
+            <div className="row">
+              <button onClick=${handleStartQuiz}>Start Quiz</button>
+            </div>
+          </section>`
+        : null}
+
+      ${user && hasStarted
         ? html`<section className="panel">
             <div className="row row-space">
               <h2>Due Quiz</h2>
-              <button onClick=${() => loadNextCard()}>Next</button>
+              <div className="row">
+                <button onClick=${() => loadNextCard()}>Next</button>
+                <button className="ghost" onClick=${handleExitQuiz}>Exit Quiz</button>
+              </div>
             </div>
             <pre className="table">${tableText}</pre>
             <div className="row">

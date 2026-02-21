@@ -59,6 +59,31 @@ input {
 }
 .row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
 .row-space { justify-content: space-between; }
+.status-line {
+  color: var(--muted);
+  font-size: 12px;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.stat-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #0a111c;
+}
+.stat-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.stat-value {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 700;
+}
 button {
   border: 1px solid var(--line);
   background: #132036;
