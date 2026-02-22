@@ -126,6 +126,8 @@ function App() {
   const [learnFormIndex, setLearnFormIndex] = useState(0);
   const [learnRepIndex, setLearnRepIndex] = useState(0);
   const [learnInput, setLearnInput] = useState('');
+  const [learnInputTone, setLearnInputTone] = useState('');
+  const [learnStarred, setLearnStarred] = useState(false);
   const [learnAttemptShownAt, setLearnAttemptShownAt] = useState(0);
   const [learnCorrectCount, setLearnCorrectCount] = useState(0);
   const [learnDone, setLearnDone] = useState(false);
@@ -373,11 +375,13 @@ function App() {
     setLearnFormIndex(0);
     setLearnRepIndex(0);
     setLearnInput('');
+    setLearnInputTone('');
     setLearnAttemptShownAt(0);
     setLearnCorrectCount(0);
     setLearnDone(false);
     setLearnCardMeta({});
     setLearnResult('');
+    setLearnStarred(false);
     setLearnReveal(true);
     setLearnCountdown(3);
     setOverview({ totalCards: 0, dueCards: 0, knownCards: 0, weakCards: 0, accuracy: 0 });
@@ -395,6 +399,8 @@ function App() {
     setLearnVerb(null);
     setLearnResult('');
     setLearnDone(false);
+    setLearnStarred(false);
+    setLearnInputTone('');
     setLearnAttemptShownAt(0);
     setLearnCardMeta({});
   }
@@ -417,6 +423,21 @@ function App() {
       total_reviews,
       correct_reviews
     `;
+    const { data: starRows, error: starErr } = await client
+      .from('learning_review_logs')
+      .select('verb_id,reviewed_at')
+      .eq('user_id', user.id)
+      .eq('client_source', 'web_learning_star')
+      .order('reviewed_at', { ascending: false })
+      .limit(500);
+    if (starErr) throw starErr;
+    const starScore = new Map();
+    for (let i = 0; i < (starRows || []).length; i += 1) {
+      const row = starRows[i];
+      if (!row?.verb_id) continue;
+      const prev = Number(starScore.get(row.verb_id) || 0);
+      starScore.set(row.verb_id, prev + Math.max(1, 500 - i));
+    }
 
     const { data: dueRows, error: dueErr } = await client
       .from('user_learning_cards')
@@ -458,6 +479,9 @@ function App() {
       }
 
       candidates.sort((a, b) => {
+        const aStar = Number(starScore.get(a.verb.id) || 0);
+        const bStar = Number(starScore.get(b.verb.id) || 0);
+        if (aStar !== bStar) return bStar - aStar;
         const aDueForms = a.rows.length;
         const bDueForms = b.rows.length;
         if (aDueForms !== bDueForms) return bDueForms - aDueForms;
@@ -482,12 +506,15 @@ function App() {
       if (verbsErr) throw verbsErr;
       if (!verbs || verbs.length === 0) {
         setLearnVerb(null);
+        setLearnStarred(false);
         setLearnResult('No verbs available for learning.');
         return;
       }
 
       const pool = lastLearnVerbId ? verbs.filter((v) => v.id !== lastLearnVerbId) : verbs;
-      const candidates = pool.length > 0 ? pool : verbs;
+      const candidatesBase = pool.length > 0 ? pool : verbs;
+      const starredCandidates = candidatesBase.filter((v) => Number(starScore.get(v.id) || 0) > 0);
+      const candidates = starredCandidates.length > 0 ? starredCandidates : candidatesBase;
       picked = candidates[Math.floor(Math.random() * candidates.length)];
     }
 
@@ -505,9 +532,11 @@ function App() {
 
     setLastLearnVerbId(picked.id || '');
     setLearnVerb(picked);
+    setLearnStarred(Number(starScore.get(picked.id) || 0) > 0);
     setLearnFormIndex(0);
     setLearnRepIndex(0);
     setLearnInput('');
+    setLearnInputTone('');
     setLearnAttemptShownAt(0);
     setLearnCorrectCount(0);
     setLearnDone(false);
@@ -534,9 +563,11 @@ function App() {
   function handleExitLearning() {
     setHasLearningStarted(false);
     setLearnVerb(null);
+    setLearnStarred(false);
     setLearnFormIndex(0);
     setLearnRepIndex(0);
     setLearnInput('');
+    setLearnInputTone('');
     setLearnAttemptShownAt(0);
     setLearnCorrectCount(0);
     setLearnDone(false);
@@ -544,6 +575,62 @@ function App() {
     setLearnResult('');
     setLearnReveal(true);
     setLearnCountdown(3);
+  }
+
+  async function handleToggleLearnStar() {
+    if (!supabase || !user || !learnVerb?.id) return;
+    try {
+      const nowIso = new Date().toISOString();
+      const currentForm = LEARN_FORMS[learnFormIndex] || 'infinitive';
+      const currentMeta = learnCardMeta[currentForm] || {};
+
+      const { error: bumpErr } = await supabase
+        .from('user_learning_cards')
+        .update({
+          due_at: nowIso,
+          state: 'relearning',
+          next_interval_days: 0,
+        })
+        .eq('user_id', user.id)
+        .eq('verb_id', learnVerb.id);
+      if (bumpErr) throw bumpErr;
+
+      const { error: logErr } = await supabase.from('learning_review_logs').insert({
+        user_id: user.id,
+        verb_id: learnVerb.id,
+        target_form: currentForm,
+        client_source: 'web_learning_star',
+        rating: 1,
+        correct: false,
+        reviewed_at: nowIso,
+        scheduled_days: 0,
+        elapsed_days: 0,
+        stability: Number(currentMeta.stability || 0),
+        difficulty: Number(currentMeta.difficulty || 5),
+        user_input: '[star]',
+        answer_expected: learnVerb[currentForm] || '',
+      });
+      if (logErr) throw logErr;
+
+      setLearnStarred(true);
+      setLearnResult('Starred for relearning: this verb is now prioritized.');
+      setLearnCardMeta((prev) => {
+        const next = { ...prev };
+        for (const form of LEARN_FORMS) {
+          const meta = next[form] || {};
+          next[form] = {
+            ...meta,
+            due_at: nowIso,
+            state: 'relearning',
+            next_interval_days: 0,
+          };
+        }
+        return next;
+      });
+      await refreshLastSolved();
+    } catch (e) {
+      setLearnResult(`Star error: ${e.message || String(e)}`);
+    }
   }
 
   function handleLearnSubmit() {
@@ -563,6 +650,7 @@ function App() {
         const now = new Date();
         const sec = learnAttemptShownAt > 0 ? (Date.now() - learnAttemptShownAt) / 1000 : 0;
         const correct = canonical(input) === canonical(expected);
+        setLearnInputTone(correct ? 'ok' : 'bad');
         let grade = 1;
         if (correct) grade = gradeBySeconds(sec);
 
@@ -642,11 +730,13 @@ function App() {
 
         const gradeLabel = grade === 4 ? 'Easy' : grade === 3 ? 'Good' : grade === 2 ? 'Hard' : 'Again';
         setLearnResult(`${correct ? 'Correct' : 'Incorrect'} [${gradeLabel}, ${sec.toFixed(1)}s]`);
+        await delay(correct ? 500 : 800);
 
         const nextRep = learnRepIndex + 1;
         if (nextRep < 3) {
           setLearnRepIndex(nextRep);
           setLearnInput('');
+          setLearnInputTone('');
           setLearnAttemptShownAt(Date.now());
           await refreshOverview();
           await refreshLastSolved();
@@ -658,6 +748,7 @@ function App() {
           setLearnFormIndex(nextForm);
           setLearnRepIndex(0);
           setLearnInput('');
+          setLearnInputTone('');
           setLearnReveal(true);
           setLearnCountdown(3);
           setLearnAttemptShownAt(0);
@@ -827,7 +918,26 @@ function App() {
       return html`<div className="learn-card">
         <div className="learn-row">
           <span className="learn-label">English</span>
-          <span className="learn-value">${learnVerb.english_meaning || '-'}</span>
+          <div className="learn-row-right">
+            <span className="learn-value">${learnVerb.english_meaning || '-'}</span>
+            <button className=${`star-btn ${learnStarred ? 'active' : ''}`} onClick=${handleToggleLearnStar}>
+              ${learnStarred ? '★' : '☆'}
+            </button>
+          </div>
+        </div>
+        <div className="learn-forms-summary">
+          <div className="learn-summary-row">
+            <span className="learn-label">infinitive</span>
+            <span className="learn-value">${learnVerb.infinitive || '-'}</span>
+          </div>
+          <div className="learn-summary-row">
+            <span className="learn-label">praeteritum</span>
+            <span className="learn-value">${learnVerb.praeteritum || '-'}</span>
+          </div>
+          <div className="learn-summary-row">
+            <span className="learn-label">partizip2</span>
+            <span className="learn-value">${learnVerb.partizip2 || '-'}</span>
+          </div>
         </div>
         <div className="learn-inputs">
           <pre className=${learnResultClass}>${learnResult}</pre>
@@ -842,7 +952,12 @@ function App() {
       return html`<div className="learn-card">
         <div className="learn-row">
           <span className="learn-label">English</span>
-          <span className="learn-value">${learnVerb.english_meaning || '-'}</span>
+          <div className="learn-row-right">
+            <span className="learn-value">${learnVerb.english_meaning || '-'}</span>
+            <button className=${`star-btn ${learnStarred ? 'active' : ''}`} onClick=${handleToggleLearnStar}>
+              ${learnStarred ? '★' : '☆'}
+            </button>
+          </div>
         </div>
         <div>
           <div className="learn-countdown">Memorize ${currentLearnForm}: ${learnCountdown}</div>
@@ -857,11 +972,17 @@ function App() {
     return html`<div className="learn-card">
       <div className="learn-row">
         <span className="learn-label">English</span>
-        <span className="learn-value">${learnVerb.english_meaning || '-'}</span>
+        <div className="learn-row-right">
+          <span className="learn-value">${learnVerb.english_meaning || '-'}</span>
+          <button className=${`star-btn ${learnStarred ? 'active' : ''}`} onClick=${handleToggleLearnStar}>
+            ${learnStarred ? '★' : '☆'}
+          </button>
+        </div>
       </div>
       <div className="learn-inputs">
         <div className="learn-form-label">${currentLearnForm} (${learnRepIndex + 1}/3)</div>
         <input
+          className=${`learn-input ${learnInputTone}`}
           value=${learnInput}
           onChange=${(e) => setLearnInput(e.target.value)}
           onKeyDown=${(e) => {

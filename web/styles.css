@@ -149,6 +149,25 @@ pre {
 .learn-row:last-child { border-bottom: 0; }
 .learn-label { color: var(--muted); }
 .learn-value { font-weight: 700; }
+.learn-row-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.star-btn {
+  min-width: 34px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  line-height: 1;
+}
+.star-btn.active {
+  color: #f2cc60;
+  border-color: #f2cc60;
+}
 .learn-countdown {
   margin: 10px 12px;
   color: var(--accent);
@@ -157,6 +176,17 @@ pre {
 .learn-inputs {
   padding: 10px 12px;
   background: #0a111c;
+}
+.learn-forms-summary {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #0a111c;
+}
+.learn-summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
 }
 .learn-form-row {
   margin-bottom: 10px;
@@ -169,6 +199,14 @@ pre {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+.learn-input.ok {
+  border-color: var(--ok);
+  box-shadow: 0 0 0 1px rgba(57, 217, 138, 0.25) inset;
+}
+.learn-input.bad {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 1px rgba(255, 107, 107, 0.25) inset;
 }
 .ok { color: var(--ok); }
 .bad { color: var(--bad); }
