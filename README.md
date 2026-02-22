@@ -51,6 +51,14 @@ Run in SQL editor:
 1. `web/supabase/schema.sql`
 2. `web/supabase/seed_verbs.sql`
 
+Log tables:
+- `review_logs`: quiz/test attempts
+- `learning_review_logs`: learning-mode attempts
+
+FSRS card tables:
+- `user_cards`: quiz/test scheduling state
+- `user_learning_cards`: learning-mode scheduling state
+
 Auth setup:
 - Enable Google provider
 - Add redirect URLs:

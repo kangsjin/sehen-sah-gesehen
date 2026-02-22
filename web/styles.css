@@ -75,6 +75,18 @@ input {
   padding: 10px;
   background: #0a111c;
 }
+.stat-card--button {
+  width: 100%;
+  text-align: left;
+  background: #0a111c;
+  border: 1px solid var(--line);
+  padding: 10px;
+}
+.stat-card--button:hover { border-color: var(--accent); }
+.stat-card--active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(92, 200, 255, 0.25) inset;
+}
 .stat-label {
   color: var(--muted);
   font-size: 12px;
@@ -120,12 +132,85 @@ pre {
 }
 .m-label { color: var(--muted); }
 .m-value { color: var(--text); font-weight: 600; text-align: right; }
+.learn-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+.learn-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #0a111c;
+}
+.learn-row:last-child { border-bottom: 0; }
+.learn-label { color: var(--muted); }
+.learn-value { font-weight: 700; }
+.learn-countdown {
+  margin: 10px 12px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.learn-inputs {
+  padding: 10px 12px;
+  background: #0a111c;
+}
+.learn-form-row {
+  margin-bottom: 10px;
+}
+.learn-form-label {
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.learn-form-inputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
 .ok { color: var(--ok); }
 .bad { color: var(--bad); }
 .hidden { display: none; }
+.overview-list {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #0a111c;
+}
+.overview-list-title {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.overview-list-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+.overview-word {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #0b1422;
+}
+.overview-word-main {
+  display: block;
+  font-weight: 700;
+}
+.overview-word-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
 @media (max-width: 700px) {
   .terminal { margin: 0; border-radius: 0; }
   .table { display: none; }
   .quiz-mobile { display: block; margin-top: 10px; }
   .row-space { align-items: flex-start; }
+  .learn-form-inputs { grid-template-columns: 1fr; }
+  .overview-list-items { grid-template-columns: 1fr; }
 }
